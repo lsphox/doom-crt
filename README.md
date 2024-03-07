@@ -1,3 +1,68 @@
+DOOM-CRT
+========
+
+One thing I’ve wanted to do for some time, is take the original source 
+code release for DOOM, the one that only had linux support, and make my 
+own port to windows, utilizing my single header libs and putting my crt 
+filter on top of it. This is that thing.
+
+Now, there are a lot of great windows ports, fixing bugs and adding 
+features, and most of them would be a better choice if you want a DOOM 
+which runs well on windows, or if you want some code to do serious work 
+on top of. My port won’t try to compete with those efforts.
+
+The main reason I’m doing it is for my own enjoyment. I’ve never really 
+poked around in the DOOM code properly before, but always wanted to.
+
+And also, I think it might be useful to make available a simple and 
+minimalistic port. One which modifies the original code as little as 
+possible, uses as few dependencies as possible (no large external 
+frameworks) and which can be built without a complex build system.
+
+It is not using any large frameworks, but relies on a few stb-style
+single-file header-only libraries (which are all placed in the `libs_win32`
+folder) which I have written myself - with the notable exception of
+the TinySoundFont library, which is used as a back-end for music playback.
+
+It’s not a particularly nice port, quick and dirty is more like it. 
+Feel free to fork it and clean it up if you want to :-)
+
+I had to make a few extra changes to make it so you can build it to WASM
+for running in a browser, but those changes are contained to a single commit,
+so if you don't want them, just checkout the commit prior to that one.
+
+How to build
+------------
+To build, start a visual studio developer command prompt and run the command:
+
+    cl doom.c
+
+This should give you a runnable `doom.exe`. The wad file for the 
+shareware version is in the repo as well, so you should be good to run
+the exe straight away. Enjoy!
+
+You can also build with Tiny C Compiler:
+	
+	tcc\tcc doom.c
+	
+You can download tcc here: [tiny-c-compiler](https://github.com/mattiasgustavsson/template_project/releases/tag/tiny-c-compiler) for either 32 or 64 bit Windows. Unzip it so that the `tcc` folder in the zip file is at your repository root.
+
+It can also be built into an HTML file to run in a browser, using WAjic:
+
+	wasm\node wasm\wajicup.js doom.c doom.html -embed doom1.wad doom1.wad -rle -template template.html
+
+A WebAssembly build environment is required. You can download it (for Windows) here: [wasm-build-tools-win](https://github.com/mattiasgustavsson/template_project/releases/download/wasm-build-tools/wasm-build-tools-win.zip).
+Unzip it so that the `wasm` folder in the zip file is at your repository root.
+
+The wasm build environment is a compact distribution of [node](https://nodejs.org/en/download/), [clang/wasm-ld](https://releases.llvm.org/download.html),
+[WAjic](https://github.com/schellingb/wajic) and [wasm system libraries](https://github.com/emscripten-core/emscripten/tree/main/system).
+
+
+/Mattias Gustavsson
+
+------------------------------------------------------------------------
+## ORIGINAL README FROM ORIGINAL SOURCE CODE RELEASE FOLLOWS
+------------------------------------------------------------------------
 
 Here it is, at long last.  The DOOM source code is released for your
 non-profit use.  You still need real DOOM data to work with this code.
