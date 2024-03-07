@@ -46,6 +46,14 @@ thread_signal_t vblank_signal;
 
 void sound_callback( APP_S16* sample_pairs, int sample_pairs_count, void* user_data ) {
     tsf* sound_font = (tsf*) user_data;
+    if( sample_pairs_count == SAMPLECOUNT * 4 ) {
+        I_UpdateSound();
+        for( int i = 0; i < SAMPLECOUNT; ++i ) {
+            for( int j = 0; j < 8; ++j ) {
+                sample_pairs[ i * 8 + j ] = mixbuffer[ i * 2 + ( j % 2 ) ];
+            }
+        }
+    }
     render_music( sample_pairs, sample_pairs_count, sound_font );
 }
 
@@ -66,7 +74,7 @@ int app_proc( app_t* app, void* user_data )
     app_pointer( app, 1, 1, &empty, 0, 0 );
 
     tsf* sound_font = tsf_load_memory( soundfont, sizeof( soundfont ) );
-    app_sound( app, 5880, sound_callback, sound_font );
+    app_sound( app, SAMPLECOUNT * 4 * 2, sound_callback, sound_font );
 	
     while( thread_atomic_int_load(&app_running) && app_yield( app ) != APP_STATE_EXIT_REQUESTED )
     {
@@ -98,7 +106,9 @@ int app_proc( app_t* app, void* user_data )
 
 int app_proc_thread()
 {
-    return app_run( app_proc, 0, 0, 0, 0 );
+    thread_mutex_init( &mus_mutex );
+	return app_run( app_proc, 0, 0, 0, 0 );
+    thread_mutex_term( &mus_mutex );
 }
 
 void I_InitGraphics (void)
