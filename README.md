@@ -1,6 +1,8 @@
 DOOM-CRT
 ========
 
+[![doom](doom.jpg)](https://mattiasgustavsson.com/wasm/doom-crt)
+
 One thing I’ve wanted to do for some time, is take the original source 
 code release for DOOM, the one that only had linux support, and make my 
 own port to windows, utilizing my single header libs and putting my crt 
@@ -30,6 +32,9 @@ Feel free to fork it and clean it up if you want to :-)
 I had to make a few extra changes to make it so you can build it to WASM
 for running in a browser, but those changes are contained to a single commit,
 so if you don't want them, just checkout the commit prior to that one.
+
+You can try this version in your browser here: 
+https://mattiasgustavsson.com/wasm/doom-crt
 
 How to build
 ------------
