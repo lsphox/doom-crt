@@ -73,11 +73,12 @@ void strupr (char* s)
 int wadfilelength (int handle) 
 { 
     struct stat	fileinfo;
-    
-    if (fstat (handle,&fileinfo) == -1)
-	I_Error ("Error fstating");
+    int p = lseek(handle, 0,SEEK_CUR);
+	lseek(handle, 0, SEEK_END);
+	int res = lseek(handle,0,SEEK_CUR);
+	lseek(handle, p, SEEK_SET);
 
-    return fileinfo.st_size;
+    return res;
 }
 
 
@@ -572,5 +573,4 @@ void W_Profile (void)
     }
     fclose (f);
 }
-
 

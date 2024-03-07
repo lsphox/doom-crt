@@ -31,6 +31,11 @@ rcsid[] = "$Id: i_main.c,v 1.4 1997/02/03 22:45:10 b1 Exp $";
 #include "m_argv.h"
 #include "d_main.h"
 
+int app_proc_thread()
+{
+	return app_run( app_proc, 0, 0, 0, 0 );
+}
+
 int
 main
 ( int		argc,
@@ -39,7 +44,25 @@ main
     myargc = argc; 
     myargv = argv; 
  
-    D_DoomMain (); 
+	#ifndef __wasm__
+	#if defined( __TINYC__ )
+		HMODULE kernel = LoadLibrary( "kernel32" );
+		InitializeConditionVariable = GetProcAddress( kernel, "InitializeConditionVariable");
+		WakeConditionVariable = GetProcAddress( kernel, "WakeConditionVariable");
+		SleepConditionVariableCS = GetProcAddress( kernel, "SleepConditionVariableCS");
+	#endif
+	thread_signal_init( &vblank_signal );
+    thread_mutex_init( &mus_mutex );
+	#endif
+
+	thread_atomic_int_store( &app_running, 1 );
+	#ifdef _WIN32
+		thread_create( app_proc_thread, 0, THREAD_STACK_SIZE_DEFAULT );
+		thread_signal_wait( &vblank_signal, THREAD_SIGNAL_WAIT_INFINITE );
+		D_DoomMain (); 
+	#else 
+		app_run( app_proc, 0, 0, 0, 0 );
+	#endif    
 
     return 0;
 } 

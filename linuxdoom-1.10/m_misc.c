@@ -146,8 +146,8 @@ M_ReadFile
     handle = open (name, O_RDONLY | O_BINARY, 0666);
     if (handle == -1)
 	I_Error ("Couldn't read file %s", name);
-    if (fstat (handle,&fileinfo) == -1)
-	I_Error ("Couldn't read file %s", name);
+   // if (fstat (handle,&fileinfo) == -1)
+	//I_Error ("Couldn't read file %s", name);
     length = fileinfo.st_size;
     buf = Z_Malloc (length, PU_STATIC, NULL);
     count = read (handle, buf, length);
@@ -237,7 +237,7 @@ default_t	defaults[] =
     {"show_messages",&showMessages, 1},
     
 
-#ifdef _WIN32    
+#if defined( _WIN32 ) || defined( __wasm__)
     {"key_right",&key_right, KEY_RIGHTARROW},
     {"key_left",&key_left, KEY_LEFTARROW},
     {"key_up",&key_up, KEY_UPARROW},

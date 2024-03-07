@@ -50,6 +50,7 @@ void I_ShutdownSound(void);
 void I_SetChannels();
 
 // Get raw data lump index for sound descriptor.
+struct sfxinfo_t;
 int I_GetSfxLumpNum (struct sfxinfo_t* sfxinfo );
 
 

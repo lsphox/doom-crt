@@ -20,7 +20,8 @@
 //
 //-----------------------------------------------------------------------------
 
-#if _WIN32
+#if defined( _WIN32 ) || defined( __wasm__ )
+
 #include "doomtype.h"
 #include "doomdef.h"
 #include "doomstat.h"
@@ -51,12 +52,23 @@ byte*	I_ZoneBase (int *size)
 // returns current time in tics.
 int I_GetTime (void)
 {
-    LARGE_INTEGER large;
+	#ifdef _WIN32
+    
+	LARGE_INTEGER large;
     LARGE_INTEGER freq;
     QueryPerformanceCounter( &large );
     QueryPerformanceFrequency( &freq );
 
     return large.QuadPart * TICRATE / freq.QuadPart;
+	
+	#else
+        struct timespec t;
+        clock_gettime( CLOCK_MONOTONIC_RAW, &t );
+        uint64_t curr_clock = (FRAMETIMER_U64)t.tv_sec;
+        curr_clock *= 1000000000ull;
+        curr_clock += (FRAMETIMER_U64)t.tv_nsec;
+		return (int)( ( curr_clock * TICRATE ) / 1000000000 );
+	#endif
 }
 
 

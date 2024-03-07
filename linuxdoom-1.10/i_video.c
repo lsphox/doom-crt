@@ -21,7 +21,7 @@
 //
 //-----------------------------------------------------------------------------
 
-#ifdef _WIN32
+#if defined( _WIN32 ) || defined( __wasm__ )
 #include "doomtype.h"
 
 #include <inttypes.h>
@@ -36,14 +36,17 @@
 
 uint8_t app_palette[256 * 3];
 uint8_t* app_screen;
+#ifndef __wasm__
 thread_atomic_int_t app_running;
+#else
+	int app_running;
+	int thread_atomic_int_load( int* v ) { return *v; };
+	void thread_atomic_int_store( int* v, int x ) { *v = x; };
+#endif
 
-event_t event_queue[ 256 ] = {0};
-int events_count = 0;
-thread_mutex_t event_mutex;
-
+#ifndef __wasm__
 thread_signal_t vblank_signal;
-
+#endif
 void sound_callback( APP_S16* sample_pairs, int sample_pairs_count, void* user_data ) {
     tsf* sound_font = (tsf*) user_data;
     if( sample_pairs_count == SAMPLECOUNT * 4 ) {
@@ -57,16 +60,55 @@ void sound_callback( APP_S16* sample_pairs, int sample_pairs_count, void* user_d
     render_music( sample_pairs, sample_pairs_count, sound_font );
 }
 
-int counter = 0;
+static int keystate[ APP_KEYCOUNT ] = { 0 };
+int mouserelx;
+int mouserely;
+
+int g_tickcount = 0;
 int app_proc( app_t* app, void* user_data )
 {
-  	app_screenmode( app, APP_SCREENMODE_FULLSCREEN );
+	#ifndef __wasm__
+		app_screenmode( app, APP_SCREENMODE_FULLSCREEN );
+	#else
+		app_screenmode( app, APP_SCREENMODE_WINDOW );
+	#endif
 	app_interpolation( app, APP_INTERPOLATION_NONE );
+
+    app_displays_t displays = app_displays( app );
+    if( displays.count > 0 ) {
+        int disp = 0;
+        for( int i = 0; i < displays.count; ++i ) {
+            if( displays.displays[ i ].x == 0 && displays.displays[ i ].y == 0 ) {
+                disp = i;
+                break;
+            }
+        }
+        int scrwidth = displays.displays[ disp ].width - 80;
+        int scrheight = displays.displays[ disp ].height - 80;
+        int aspect_width = (int)( ( scrheight * 4.25f ) / 3 );
+        int aspect_height = (int)( ( scrwidth * 3 ) / 4.25f );
+        int target_width, target_height;
+        if( aspect_height <= scrheight ) {
+            target_width = scrwidth;
+            target_height = aspect_height;
+        } else {
+            target_width = aspect_width;
+            target_height = scrheight;
+        }
+        
+        int x = displays.displays[ disp ].x + ( displays.displays[ disp ].width - target_width ) / 2;
+        int y = displays.displays[ disp ].y + ( displays.displays[ disp ].height - target_height ) / 2;
+        int w = target_width;
+        int h = target_height;
+        app_window_pos( app, x, y );
+        app_window_size( app, w, h );
+    }
+
 
     uint8_t* screen_buffer_xbgr = (uint8_t*)malloc( SCREENWIDTH * SCREENHEIGHT * 4 );
 
     frametimer_t* frametimer = frametimer_create( 0);
-    frametimer_lock_rate( frametimer, 60 );
+    frametimer_lock_rate( frametimer, TICRATE );
     
     crtemu_t* crtemu = crtemu_create( CRTEMU_TYPE_LITE,0 );
 
@@ -76,8 +118,33 @@ int app_proc( app_t* app, void* user_data )
     tsf* sound_font = tsf_load_memory( soundfont, sizeof( soundfont ) );
     app_sound( app, SAMPLECOUNT * 4 * 2, sound_callback, sound_font );
 	
+	#ifndef __wasm__
+	thread_signal_raise( &vblank_signal );
+	#endif
+	#ifdef __wasm__
+    // WebAssembly has no real threads so we use coroutines which can switch context between two
+    // callstacks to simulate the behavior from native platforms
+    user_coro = WaCoroInitNew( user_thread_proc, "user_thread_proc", 0, 0 );
+	WaCoroSwitch(user_coro);
+    #endif
+	
     while( thread_atomic_int_load(&app_running) && app_yield( app ) != APP_STATE_EXIT_REQUESTED )
     {
+		app_input_t input = app_input( app );
+		for( int i = 0; i < input.count; ++i ) {
+			if( input.events[i].type==APP_INPUT_KEY_DOWN ) {
+				if( input.events[i].data.key < APP_KEYCOUNT ) {
+					keystate[input.events[i].data.key] = 1;
+				}
+			} else if( input.events[i].type==APP_INPUT_KEY_UP ) {
+				if( input.events[i].data.key < APP_KEYCOUNT ) {
+					keystate[input.events[i].data.key] = 0;
+				}
+			} else if( input.events[i].type==APP_INPUT_MOUSE_DELTA ) {
+				mouserelx = (int)(input.events[i].data.mouse_delta.x*8.0f); 
+				mouserely = (int)(input.events[i].data.mouse_delta.y*8.0f);
+			}
+		}
         if( app_screen )
         {
             for( int i = 0; i < SCREENWIDTH * SCREENHEIGHT; ++i )
@@ -91,12 +158,15 @@ int app_proc( app_t* app, void* user_data )
         }
 
         frametimer_update( frametimer );
-        ++counter;
+        ++g_tickcount;
+		#ifndef __wasm__
 		thread_signal_raise( &vblank_signal );
-
-        crtemu_present( crtemu, ( counter * 1000000ULL) / 60, (APP_U32*)screen_buffer_xbgr, SCREENWIDTH, SCREENHEIGHT, 0xffffff, 0x000000 );
+		#endif
+        crtemu_present( crtemu, ( g_tickcount * 1000000ULL) / TICRATE, (APP_U32*)screen_buffer_xbgr, SCREENWIDTH, SCREENHEIGHT, 0xffffff, 0x000000 );
         app_present( app, 0, 0, 0, 0xffffffff, 0x00000000);
-
+		#ifdef __wasm__
+			WaCoroSwitch(user_coro);
+		#endif
     }
 	app_sound( app, 0, NULL, NULL );
     tsf_close( sound_font );	
@@ -104,28 +174,11 @@ int app_proc( app_t* app, void* user_data )
 	return 0;
 }
 
-int app_proc_thread()
-{
-    thread_mutex_init( &mus_mutex );
-	return app_run( app_proc, 0, 0, 0, 0 );
-    thread_mutex_term( &mus_mutex );
-}
 
 void I_InitGraphics (void)
 {
-	#if defined( __TINYC__ )
-		HMODULE kernel = LoadLibrary( "kernel32" );
-		InitializeConditionVariable = GetProcAddress( kernel, "InitializeConditionVariable");
-		WakeConditionVariable = GetProcAddress( kernel, "WakeConditionVariable");
-		SleepConditionVariableCS = GetProcAddress( kernel, "SleepConditionVariableCS");
-	#endif
-	thread_mutex_init( &event_mutex );
-	thread_signal_init( &vblank_signal );
-
     app_screen = (uint8_t*)malloc( SCREENWIDTH * SCREENHEIGHT );
-    thread_atomic_int_store( &app_running, 1 );
 
-    thread_create( app_proc_thread, 0, THREAD_STACK_SIZE_DEFAULT );
 }
 
 void I_ShutdownGraphics(void)
@@ -135,7 +188,6 @@ void I_ShutdownGraphics(void)
     free( app_screen );
     app_screen = 0;
 
-    thread_signal_term( &vblank_signal );
 }
 
 // Takes full 8 bit values.
@@ -158,6 +210,9 @@ void I_SetPalette (byte* palette)
 
 void I_UpdateNoBlit (void)
 {
+	#ifdef __wasm__
+		WaCoroSwitch(0);
+	#endif
 }
 
 void I_FinishUpdate (void)
@@ -175,49 +230,50 @@ void I_FinishUpdate (void)
 // Can call D_PostEvent.
 void I_StartTic (void)
 {
-    static int prev[ 256 ] = { 0 };
-    int keys[ 256 ];
-    for( int i = 0; i < 256; ++i ) keys[ i ] = ( GetAsyncKeyState( i ) & 0x8000 ) != 0;
+    static int prev[ APP_KEYCOUNT ] = { 0 };
+    int keys[ APP_KEYCOUNT ];
+    for( int i = 0; i < APP_KEYCOUNT; ++i ) keys[ i ] = keystate[ i ];
 
-    for( int i = 0; i < 255; ++i ) 
+    for( int i = 0; i < APP_KEYCOUNT; ++i ) 
     {
         int key = 0;
-        
+
         switch( i )
         {
-            case VK_RSHIFT: key = KEY_RSHIFT; break;
-            case VK_RCONTROL: key = KEY_RCTRL; break;
-            case VK_MENU: key = KEY_RALT; break;
-            case VK_BACK: key = KEY_BACKSPACE; break;
-            case VK_PAUSE: key = KEY_PAUSE; break;
-            case VK_TAB: key = KEY_TAB; break;
-            case VK_F1: key = KEY_F1; break;
-            case VK_F2: key = KEY_F2; break;
-            case VK_F3: key = KEY_F3; break;
-            case VK_F4: key = KEY_F4; break;
-            case VK_F5: key = KEY_F5; break;
-            case VK_F6: key = KEY_F6; break;
-            case VK_F7: key = KEY_F7; break;
-            case VK_F8: key = KEY_F8; break;
-            case VK_F9: key = KEY_F9; break;
-            case VK_F10: key = KEY_F10; break;
-            case VK_F11: key = KEY_F11; break;
-            case VK_F12: key = KEY_F12; break;
-            case VK_UP: key = KEY_UPARROW; break;
-            case VK_DOWN: key = KEY_DOWNARROW; break;
-            case VK_LEFT: key = KEY_LEFTARROW; break;
-            case VK_RIGHT: key = KEY_RIGHTARROW; break;
-            case VK_ESCAPE: key = KEY_ESCAPE; break;
-            case VK_SHIFT: key = KEY_RSHIFT; break;
-            case VK_CONTROL: key = KEY_RCTRL; break;
-            case VK_RMENU: key = KEY_RALT; break;
-            case VK_LMENU: key = KEY_LALT; break;
-            case VK_RETURN: key = KEY_ENTER; break;
-		    case VK_SPACE: key = ' '; break;
-		    case VK_OEM_PLUS: key = KEY_EQUALS; break;
-		    case VK_OEM_MINUS: key = KEY_MINUS; break;
-			default:
-                key = tolower( i );
+            case 97: key = KEY_F1; break;
+            case 98: key = KEY_F2; break;
+            case 99: key = KEY_F3; break;
+            case 100: key = KEY_F4; break;
+            case 101: key = KEY_F5; break;
+            case 102: key = KEY_F6; break;
+            case 103: key = KEY_F7; break;
+            case 104: key = KEY_F8; break;
+            case 105: key = KEY_F9; break;
+            case 106: key = KEY_F10; break;
+            case 107: key = KEY_F11; break;
+            case 108: key = KEY_F12; break;
+            case 8: key = KEY_TAB; break;
+            case APP_KEY_OEM_MINUS: key = KEY_MINUS; break;
+            case APP_KEY_OEM_PLUS: key = KEY_EQUALS; break;
+            case APP_KEY_BACK: key = KEY_BACKSPACE; break;
+            case APP_KEY_UP: key = KEY_UPARROW; break;
+            case APP_KEY_DOWN: key = KEY_DOWNARROW; break;
+            case APP_KEY_LEFT: key = KEY_LEFTARROW; break;
+            case APP_KEY_RIGHT: key = KEY_RIGHTARROW; break;
+            case 20: key = KEY_ESCAPE; break;
+            case APP_KEY_SHIFT: key = KEY_RSHIFT; break;
+            case APP_KEY_CONTROL: key = KEY_RCTRL; break;
+            case APP_KEY_RMENU: key = KEY_RALT; break;
+            case APP_KEY_LMENU: key = KEY_LALT; break;
+            case APP_KEY_RETURN: key = KEY_ENTER; break;
+			case 14: key = KEY_PAUSE; break;
+		    case APP_KEY_SPACE: key = ' '; break;
+        }
+        if( i >= APP_KEY_A && i <= APP_KEY_Z ) {
+            key = 'a' + ( i - APP_KEY_A );
+        }
+        if( i >= APP_KEY_0 && i <= APP_KEY_9 ) {
+            key = '0' + ( i - APP_KEY_0 );
         }
 
         if( keys[ i ] && !prev[ i ] )
@@ -237,30 +293,32 @@ void I_StartTic (void)
         prev[ i ] = keys[ i ];
 	}
 
-    RECT r;
-    GetClientRect( GetDesktopWindow(), &r );
-    r.bottom -= r.top;
-    r.right -= r.left;
-    POINT pos;
-    GetCursorPos( &pos );
-    pos.x -= r.right / 2;
-    pos.y -= r.bottom / 2;
+    int relx = mouserelx;
+    int rely = mouserely;
+	mouserelx= 0;
+	mouserely= 0;
 
-    event_t ev;
-	ev.type = ev_mouse;
-    ev.data1 = 0;
-	ev.data2 = pos.x << 2;
-	ev.data3 = -pos.y << 2;
-    D_PostEvent( &ev );
-    SetCursorPos(r.right / 2,r.bottom / 2);
+	if( relx || rely ) {
+		event_t ev;
+		ev.type = ev_mouse;
+		ev.data1 = 0;
+		ev.data2 = relx << 2;
+		ev.data3 = -rely << 2;
+		D_PostEvent( &ev );
+	}
 }
 
 // Wait for vertical retrace or pause a bit.
 void I_WaitVBL(int count)
 {
-    int c = counter;
-    while ( counter - c < count )
+	#ifndef __wasm__
+    int c = g_tickcount;
+    while ( g_tickcount - c < count )
 	    thread_signal_wait( &vblank_signal, 1000 );
+	#endif
+	#ifdef __wasm__
+		WaCoroSwitch(0);
+	#endif
 }
 
 void I_ReadScreen (byte* scr)

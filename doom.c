@@ -8,16 +8,42 @@
 #pragma warning( disable: 4133 )
 #pragma warning( disable: 4142 )
 
+#ifdef _WIN32
 #define strcasecmp stricmp
 #define strncasecmp strnicmp
+#else
+#include <strings.h>	
+#endif
 
 #define CONCAT_IMPL( x, y ) x##y
 #define CONCAT( x, y ) CONCAT_IMPL( x, y )
 #define rcsid CONCAT( rcsid, __COUNTER__ )
 
+
+#include <stdio.h>
+#include <stdlib.h>
+#include <stdarg.h>
+
+int doom_access( char const* _FileName, int _AccessMode ) {
+    FILE* f = fopen( _FileName, "rb" );
+    if( f ) {
+        fclose(f);
+        return 0;
+    }
+    return 1;
+}
+#ifdef _WIN32
+	#include "libs_win32/unistd.h"
+#else 
+	#include <unistd.h>
+#endif
+
+#undef access
+#define access doom_access
+
 #define open doom_open
 #define close doom_close
-#include "libs_win32/unistd.h"
+
 #include "linuxdoom-1.10/am_map.c"
 #include "linuxdoom-1.10/doomdef.c"
 #include "linuxdoom-1.10/doomstat.c"
@@ -31,7 +57,6 @@
 #include "linuxdoom-1.10/hu_lib.c"
 #include "linuxdoom-1.10/hu_stuff.c"
 #include "linuxdoom-1.10/info.c"
-#include "linuxdoom-1.10/i_main.c"
 #include "linuxdoom-1.10/m_argv.c"
 #include "linuxdoom-1.10/m_bbox.c"
 #include "linuxdoom-1.10/m_cheat.c"
@@ -86,7 +111,6 @@
 #undef open
 #undef close
 
-#include <io.h>
 #include "linuxdoom-1.10/m_menu.c"
 #include "linuxdoom-1.10/m_misc.c"
 #define strupr xstrupr
@@ -105,7 +129,14 @@
 #undef MINLONG
 
 #include <stdint.h>
+#include <stdbool.h>
+#include <time.h>
+#ifdef __wasm__
+#define APP_WASM
+#define WA_CORO_IMPLEMENT_NANOSLEEP
+#else
 #define APP_WINDOWS
+#endif
 #define APP_LOG( ctx, level, message )
 #define boolean HACK_TO_MAKE_BOOLEAN_NOT_BE_DEFINED
 #define APP_IMPLEMENTATION
@@ -118,6 +149,7 @@
 #define CRTEMU_IMPLEMENTATION
 #include "libs_win32/crtemu.h"
 
+#ifndef __wasm__
 #define THREAD_IMPLEMENTATION
 #if defined( __TINYC__ )
 	typedef struct _RTL_CONDITION_VARIABLE { PVOID Ptr; } RTL_CONDITION_VARIABLE, *PRTL_CONDITION_VARIABLE;
@@ -128,6 +160,8 @@
 #endif
 #include "libs_win32/thread.h"
 #undef THREAD_IMPLEMENTATION
+#endif
+
 #undef boolean 
 
 #define MUS_IMPLEMENTATION
@@ -147,6 +181,16 @@
 
 #include "libs_win32/soundfont.c"
 
+#ifdef __wasm__
+WaCoro user_coro;
+WA_EXPORT(user_thread_proc) int user_thread_proc( void* user_data ) {
+	D_DoomMain (); 
+    return 0;
+}
+#endif
+
 #include "linuxdoom-1.10/i_sound.c"
 #include "linuxdoom-1.10/i_video.c"
 #include "linuxdoom-1.10/i_system.c"
+
+#include "linuxdoom-1.10/i_main.c"

@@ -1,4 +1,4 @@
-#ifdef _WIN32
+#if defined( _WIN32 ) || defined( __wasm__ )
 
 #define SAMPLECOUNT		512
 #define NUM_CHANNELS		8
@@ -522,7 +522,9 @@ struct music_t {
     int left_over;
 } music = { NULL, 1, 0 };
 
+#ifndef __wasm__
 thread_mutex_t mus_mutex;
+#endif
 
 static void* musics[ 16 ];
 
@@ -574,7 +576,9 @@ void
 I_PlaySong
 ( int		handle,
   int		looping ){
+	#ifndef __wasm__
     thread_mutex_lock( &mus_mutex );
+	#endif
     if( music.mus ) {
         mus_destroy( music.mus );
         music.mus = NULL;
@@ -588,17 +592,23 @@ I_PlaySong
 			music.reset = 1;
         }
     }
+	#ifndef __wasm__
     thread_mutex_unlock( &mus_mutex );
+	#endif
 }
 // Stops a song over 3 seconds.
 void I_StopSong(int handle){
+	#ifndef __wasm__
     thread_mutex_lock( &mus_mutex );
+	#endif
     // TODO: fadeout
     mus_destroy( music.mus );
     music.mus = NULL;
     music.left_over = 0;
     music.reset = 1;
+	#ifndef __wasm__
     thread_mutex_unlock( &mus_mutex );
+	#endif
 }
 // See above (register), then think backwards
 void I_UnRegisterSong(int handle){
@@ -610,11 +620,15 @@ void I_UnRegisterSong(int handle){
 
 
 void render_music( short* sample_pairs, int sample_pairs_count, tsf* sound_font ) {
+	#ifndef __wasm__
     thread_mutex_lock( &mus_mutex );
+	#endif
     mus_t* mus = music.mus;
     if( !mus ) {
         memset( sample_pairs, 0, sizeof( short ) * sample_pairs_count * 2 );
+		#ifndef __wasm__
         thread_mutex_unlock( &mus_mutex );
+		#endif
         return;
     }
     if( music.reset ) {
@@ -638,7 +652,9 @@ void render_music( short* sample_pairs, int sample_pairs_count, tsf* sound_font 
     }
     if( left_over ) {
         music.left_over = left_over;
+		#ifndef __wasm__
         thread_mutex_unlock( &mus_mutex );
+		#endif
         return;
     }
 
@@ -733,7 +749,9 @@ void render_music( short* sample_pairs, int sample_pairs_count, tsf* sound_font 
         }
     }
     music.left_over = left_over;
+	#ifndef __wasm__
     thread_mutex_unlock( &mus_mutex );
+	#endif
 }
 
 #else

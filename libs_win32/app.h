@@ -4296,7 +4296,7 @@ int app_run( int (*app_proc)( app_t*, void* ), void* user_data, void* memctx, vo
         app_fatal_error( app, "OpenGL init fail" );
         goto init_failed;
         }
-    WaCoroInitNew( NULL, NULL, NULL, 0 );
+    //WaCoroInitNew( NULL, NULL, NULL, 0 );
     result = app_proc( app, user_data );
 
 init_failed:

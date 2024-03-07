@@ -877,7 +877,7 @@ void D_DoomMain (void)
     if (M_CheckParm("-cdrom"))
     {
 	printf(D_CDROM);
-	mkdir("c:\\doomdata");
+	//mkdir("c:\\doomdata");
 	strcpy (basedefault,"c:/doomdata/default.cfg");
     }	
     
