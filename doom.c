@@ -104,6 +104,7 @@
 #undef MININT
 #undef MINLONG
 
+#include <stdint.h>
 #define APP_WINDOWS
 #define APP_LOG( ctx, level, message )
 #define boolean HACK_TO_MAKE_BOOLEAN_NOT_BE_DEFINED
