@@ -524,6 +524,9 @@ struct music_t {
 
 thread_mutex_t mus_mutex;
 
+static void* musics[ 16 ];
+
+
 void I_InitMusic(void){
 }
 
@@ -541,7 +544,28 @@ void I_PauseSong(int handle){}
 void I_ResumeSong(int handle){}
 // Registers a song handle to song data.
 static int idx = 0;
-int I_RegisterSong(void *data){ return (int)(uintptr_t)data; }
+int I_RegisterSong(void *data){ 
+    int slot = -1;
+    for( int i = 0; i < sizeof( musics ) / sizeof( *musics ); ++i ) {
+        if( musics[ i ] == NULL ) {
+            slot = i; 
+            break;
+        }
+    }
+    if( slot == -1 ) {
+        return -1;
+    }
+
+    uintptr_t ptr = (uintptr_t) data;
+    unsigned int sig = *(unsigned int*) ptr;
+    ptr += 4;
+    if( sig != 0x1a53554d ) { // Identifier "MUS" followed by 0x1A
+        return -1;
+    }
+
+    musics[ slot ] = data;
+    return slot;
+}
 // Called by anything that wishes to start music.
 //  plays a song, and when the song is done,
 //  starts playing it again in an endless loop.
@@ -551,15 +575,19 @@ I_PlaySong
 ( int		handle,
   int		looping ){
     thread_mutex_lock( &mus_mutex );
-    void* data = (void*)(uintptr_t)handle;
     if( music.mus ) {
         mus_destroy( music.mus );
         music.mus = NULL;
     }
-    int size = *( ( (uint16_t*) data ) + 2 ) + *( ( (uint16_t*) data ) + 3 ); 
-    music.mus = mus_create( data, size, NULL );
-    music.left_over = 0;
-    music.reset = 1;
+    if( handle >= 0 && handle < sizeof( musics ) / sizeof( *musics ) ) {
+        if( musics[ handle ] ) {
+			void* data = musics[ handle ];
+			int size = *( ( (uint16_t*) data ) + 2 ) + *( ( (uint16_t*) data ) + 3 ); 
+			music.mus = mus_create( data, size, NULL );
+			music.left_over = 0;
+			music.reset = 1;
+        }
+    }
     thread_mutex_unlock( &mus_mutex );
 }
 // Stops a song over 3 seconds.
@@ -573,7 +601,11 @@ void I_StopSong(int handle){
     thread_mutex_unlock( &mus_mutex );
 }
 // See above (register), then think backwards
-void I_UnRegisterSong(int handle){}
+void I_UnRegisterSong(int handle){
+    if( handle >= 0 && handle < sizeof( musics ) / sizeof( *musics ) ) {
+        musics[ handle ] = NULL;
+    }	
+}
 
 
 
