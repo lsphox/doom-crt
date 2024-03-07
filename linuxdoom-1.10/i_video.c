@@ -44,6 +44,11 @@ thread_mutex_t event_mutex;
 
 thread_signal_t vblank_signal;
 
+void sound_callback( APP_S16* sample_pairs, int sample_pairs_count, void* user_data ) {
+    tsf* sound_font = (tsf*) user_data;
+    render_music( sample_pairs, sample_pairs_count, sound_font );
+}
+
 int counter = 0;
 int app_proc( app_t* app, void* user_data )
 {
@@ -53,13 +58,16 @@ int app_proc( app_t* app, void* user_data )
     uint8_t* screen_buffer_xbgr = (uint8_t*)malloc( SCREENWIDTH * SCREENHEIGHT * 4 );
 
     frametimer_t* frametimer = frametimer_create( 0);
-    frametimer_lock_rate( frametimer, 70 );
+    frametimer_lock_rate( frametimer, 60 );
     
     crtemu_t* crtemu = crtemu_create( CRTEMU_TYPE_LITE,0 );
 
     APP_U32 empty = 0;
     app_pointer( app, 1, 1, &empty, 0, 0 );
 
+    tsf* sound_font = tsf_load_memory( soundfont, sizeof( soundfont ) );
+    app_sound( app, 5880, sound_callback, sound_font );
+	
     while( thread_atomic_int_load(&app_running) && app_yield( app ) != APP_STATE_EXIT_REQUESTED )
     {
         if( app_screen )
@@ -78,10 +86,12 @@ int app_proc( app_t* app, void* user_data )
         ++counter;
 		thread_signal_raise( &vblank_signal );
 
-        crtemu_present( crtemu, ( counter * 1000000ULL) / 70, (APP_U32*)screen_buffer_xbgr, SCREENWIDTH, SCREENHEIGHT, 0xffffff, 0x000000 );
+        crtemu_present( crtemu, ( counter * 1000000ULL) / 60, (APP_U32*)screen_buffer_xbgr, SCREENWIDTH, SCREENHEIGHT, 0xffffff, 0x000000 );
         app_present( app, 0, 0, 0, 0xffffffff, 0x00000000);
 
     }
+	app_sound( app, 0, NULL, NULL );
+    tsf_close( sound_font );	
     free( screen_buffer_xbgr );
 	return 0;
 }

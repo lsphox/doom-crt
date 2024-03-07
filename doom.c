@@ -32,7 +32,6 @@
 #include "linuxdoom-1.10/hu_stuff.c"
 #include "linuxdoom-1.10/info.c"
 #include "linuxdoom-1.10/i_main.c"
-#include "linuxdoom-1.10/i_sound.c"
 #include "linuxdoom-1.10/m_argv.c"
 #include "linuxdoom-1.10/m_bbox.c"
 #include "linuxdoom-1.10/m_cheat.c"
@@ -130,5 +129,23 @@
 #undef THREAD_IMPLEMENTATION
 #undef boolean 
 
+#define MUS_IMPLEMENTATION
+#include "libs_win32/mus.h"
+
+#define TSF_IMPLEMENTATION
+#define TSF_POW     pow
+#define TSF_POWF    (float)pow
+#define TSF_EXPF    (float)exp
+#define TSF_LOG     log
+#define TSF_TAN     tan
+#define TSF_LOG10   log10
+#define TSF_SQRT   (float)sqrt
+#define TSF_SQRTF   (float)sqrt
+#include <math.h>
+#include "libs_win32/tsf.h"
+
+#include "libs_win32/soundfont.c"
+
+#include "linuxdoom-1.10/i_sound.c"
 #include "linuxdoom-1.10/i_video.c"
 #include "linuxdoom-1.10/i_system.c"
