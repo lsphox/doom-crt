@@ -33,8 +33,6 @@
 #include "linuxdoom-1.10/info.c"
 #include "linuxdoom-1.10/i_main.c"
 #include "linuxdoom-1.10/i_sound.c"
-#include "linuxdoom-1.10/i_system.c"
-#include "linuxdoom-1.10/i_video.c"
 #include "linuxdoom-1.10/m_argv.c"
 #include "linuxdoom-1.10/m_bbox.c"
 #include "linuxdoom-1.10/m_cheat.c"
@@ -97,3 +95,40 @@
 #undef strupr
 
 #include "linuxdoom-1.10/i_net.c"
+
+#undef MAXCHAR
+#undef MAXSHORT
+#undef MAXINT
+#undef MAXLONG
+#undef MINCHAR
+#undef MINSHORT
+#undef MININT
+#undef MINLONG
+
+#define APP_WINDOWS
+#define APP_LOG( ctx, level, message )
+#define boolean HACK_TO_MAKE_BOOLEAN_NOT_BE_DEFINED
+#define APP_IMPLEMENTATION
+#include "libs_win32/app.h"
+#undef APP_IMPLEMENTATION
+
+#define FRAMETIMER_IMPLEMENTATION
+#include "libs_win32/frametimer.h"
+
+#define CRTEMU_IMPLEMENTATION
+#include "libs_win32/crtemu.h"
+
+#define THREAD_IMPLEMENTATION
+#if defined( __TINYC__ )
+	typedef struct _RTL_CONDITION_VARIABLE { PVOID Ptr; } RTL_CONDITION_VARIABLE, *PRTL_CONDITION_VARIABLE;
+	typedef RTL_CONDITION_VARIABLE CONDITION_VARIABLE, *PCONDITION_VARIABLE;
+	static VOID (*InitializeConditionVariable)( PCONDITION_VARIABLE );
+	static VOID (*WakeConditionVariable)( PCONDITION_VARIABLE );
+	static BOOL (*SleepConditionVariableCS)( PCONDITION_VARIABLE, PCRITICAL_SECTION, DWORD );
+#endif
+#include "libs_win32/thread.h"
+#undef THREAD_IMPLEMENTATION
+#undef boolean 
+
+#include "linuxdoom-1.10/i_video.c"
+#include "linuxdoom-1.10/i_system.c"
